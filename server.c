@@ -56,59 +56,58 @@ int main(){
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if(sockfd < 0) myerror("socet_error");	//Error check, call myerror on error
 
-	//アドレスを作る
+	//Create address
 	memset(&serv_addr, 0, sizeof(struct sockaddr_in));
 	serv_addr.sin_family = AF_INET;
 	serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 	serv_addr.sin_port = htons(10000);
 
-	//setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof(int));		//デバッグ時有効
 
-	//ソケットにアドレスを割り当てる
+	//Assign an address to a socket
 	chkerr = bind(sockfd, (struct sockaddr *)&serv_addr, sizeof(struct sockaddr_in));
 	if(chkerr < 0) myerror("bind_error");
 
-	fds[0].fd = sockfd;			//poll()で見る読み込みソケットとしてsockfdを登録
-	fds[0].events = POLLIN;		//reventsにPOLLINが返ってくるように設定する
+	fds[0].fd = sockfd;			//Register sockfd as a read socket to see with poll()
+	fds[0].events = POLLIN;		//Set so that POLLIN is returned in revents
 
-	fds[1].fd = 0;				//poll()で見る読み込みソケットとして標準入力を登録
-	fds[1].events = POLLIN;		//reventsにPOLLINが返ってくるように設定する
+	fds[1].fd = 0;				//Register standard input as a read socket to see with poll()
+	fds[1].events = POLLIN;		//Set so that POLLIN is returned in revents
 
-	chkerr = listen(fds[0].fd, 5); //コネクション要求を待ち始めるよう指示
+	chkerr = listen(fds[0].fd, 5); //Instruct to start waiting for connection request
 	if(chkerr < 0) myerror("listen_error");
 
-	printf("このサーバーの最大接続人数は%dです\n",MAX_USER);
+	printf("The maximum number of connections for this server is %d\n",MAX_USER);
 	while(1){
-		poll(fds,2,0);	//sockfdと標準入力を監視
+		poll(fds,2,0);	//Monitor sockfd and stdin
 		if(fds[0].revents == POLLIN  &&  nuser < MAX_USER){
-		//sockfdに通信要求がある場合入る。クライアントの人数が上限に達している場合は入らない
+		//Enter if sockfd has a communication request. If the number of clients reaches the upper limit, it will not enter
 			for(j=0; j< MAX_USER; j++){
-				if(user[j].login != 1){	//ログインされていないuser[j]にクライアントを登録
-					user[j].new_sockfd[0].fd = accept(fds[0].fd, NULL, NULL);	//fdを配列に保存
+				if(user[j].login != 1){	//Register a client to user[j] that is occupied
+					user[j].new_sockfd[0].fd = accept(fds[0].fd, NULL, NULL);	//save fd to array
 					if(user[j].new_sockfd[0].fd == -1) myerror("accept_error");
 
-					user[j].new_sockfd[0].events = POLLIN;		//reventsにPOLLINが返ってくるように設定する
+					user[j].new_sockfd[0].events = POLLIN;		//Set so that POLLIN is returned in revents
 
-					chkerr = read(user[j].new_sockfd[0].fd, buff, 128);	//クライアントからデータ(クライアントの名前)を受け取る
+					chkerr = read(user[j].new_sockfd[0].fd, buff, 128);	//Receive user name
 					if(chkerr < 0) myerror("read_name_error");
 
-					strcpy(user[j].name, buff);	//nameに名前を保存する
-					user[j].login = 1;			//ログイン状態にする
-					nuser++;				//クライアントの人数を1人増やす
-					sprintf(new_buff,"->%sさんがloginしました ＊残り接続可能数:%d\n",buff, MAX_USER-nuser);
+					strcpy(user[j].name, buff);	//Save name
+					user[j].login = 1;			//Be logged in
+					nuser++;				//increase by one
+					sprintf(new_buff,"->%s log in ＊Number of remaining connections:%d\n",buff, MAX_USER-nuser);
 					if(chkerr < 0) myerror("sprintf_error");
 
-					if(nuser == MAX_USER){	//最大人数に達した時警告文をいれる
-						sprintf(buff, "%s＊＊ユーザ人数が上限になりました＊＊\n", new_buff);
+					if(nuser == MAX_USER){	//Alart if the number of users reached maximum
+						sprintf(buff, "%s＊＊Maximum number of users reached＊＊\n", new_buff);
 						if(chkerr < 0) myerror("sprintf_error");
 						strcpy(new_buff, buff);
 					}
-					for(i=0;i<MAX_USER;i++){	//全クライアントに送信する
+					for(i=0;i<MAX_USER;i++){	//Send to all users
 						if(user[i].login){
 							chkerr = write(user[i].new_sockfd[0].fd, new_buff, 128);
 							if(chkerr < 0) myerror("write_comment_error");
 							if(i != j){
-								chkerr = sprintf(buff,"->%sさんがloginしています\n",user[i].name);
+								chkerr = sprintf(buff,"->%s logged in\n",user[i].name);
 								if(chkerr < 0) myerror("sprintf_error");
 								chkerr = write(user[j].new_sockfd[0].fd, buff, 128);
 								if(chkerr < 0) myerror("write_comment_error");
@@ -125,31 +124,31 @@ int main(){
 			poll(user[j].new_sockfd,1,0);
 
 			if(user[j].new_sockfd[0].revents == POLLIN  &&  user[j].login == 1){
-			//クライアントからの通信要求がある場合に入る。ログイン状態でない場合は入らない
-				chkerr = read(user[j].new_sockfd[0].fd, buff, 128);	//データの受け取り
+			//Enter if there is a communication request from the client. You cannot enter if you are not logged in
+				chkerr = read(user[j].new_sockfd[0].fd, buff, 128);	//Receipt of data
 				if(chkerr < 0){
 					myerror("read_comment_error");
 				}else if(chkerr == 0){
-				//chkerrが0の場合、"LOGOUT"入力以外の方法でクライアントとのソケットが切れた場合入る
-					strcpy(buff, "LOGOUT");		//LOGOUT扱いにする
+				//enter if the socket with the client is closed by any method other than "LOGOUT" input
+					strcpy(buff, "LOGOUT");		
 				}
 
-				if(strcmp(buff, "LOGOUT") == 0){	//"LOGOUT"が入力された時
-					chkerr = write(user[j].new_sockfd[0].fd, buff, 128);	//クライアントに"LOGOUT"を送りソケットをcloseさせる
+				if(strcmp(buff, "LOGOUT") == 0){	//If "LOGOUT" is entered
+					chkerr = write(user[j].new_sockfd[0].fd, buff, 128);	//Send "LOGOUT" to the client to close the socket
 					if(chkerr < 0) myerror("write_error");
 
-					nuser--;	//クライアントを1人減らす
-					user[j].login = 0;	//ログアウト状態にする
+					nuser--;	//Decrease by one
+					user[j].login = 0;	//Be log out status
 
-					chkerr = sprintf(new_buff, "<-%sさんがlogoutしました ＊残り接続可能数:%d\n", user[j].name, MAX_USER-nuser);
+					chkerr = sprintf(new_buff, "<-%s logeged out ＊Number of remaining connections:%d\n", user[j].name, MAX_USER-nuser);
 					if(chkerr < 0) myerror("sprintf_error");
-				}else{	//それ以外のコメントが送られた場合
+				}else{	//If any other comment is put
 					chkerr = sprintf(new_buff, "%s: %s\n", user[j].name, buff);
 					if(chkerr < 0) myerror("sprintf_error");
 				}
  				printf("%s",new_buff);
 
-				for(i=0;i<MAX_USER;i++){	//全クライアントに送信する
+				for(i=0;i<MAX_USER;i++){	//Send to all clients
 					if(user[i].login){
 						chkerr = write(user[i].new_sockfd[0].fd, new_buff, 128);
         				if(chkerr < 0) myerror("write_comment_error");
@@ -157,17 +156,17 @@ int main(){
 				}
 			}
 		}
-		if(fds[1].revents == POLLIN){	//キーボードからの入力がある場合に入る
+		if(fds[1].revents == POLLIN){	//Enter if there is input from the keyboard
 			scanf("%s",buff);
-			if(strcmp(buff, "SERVER_END") == 0){	//"SERVER_END"から入力された場合while文から抜ける
+			if(strcmp(buff, "SERVER_END") == 0){	//Exit from while statement when input from "SERVER_END"
 				break;
 			}
 			else{
-				printf("無効なコマンドです\n");
+				printf("Invalid command\n");
 			}
 		}
 	}
-	for(i=0;i<MAX_USER;i++){	//全クライアントにソケットをcloseするよう送信する
+	for(i=0;i<MAX_USER;i++){	//Send all clients to close the socket
 		if(user[i].login){
 			chkerr = write(user[i].new_sockfd[0].fd, "SERVER_END", 128);
 			if(chkerr < 0) myerror("write_serverend_error");
@@ -175,7 +174,7 @@ int main(){
 	}
 
 
-	//全クライアントのソケットcloseするまで待つ
+	//Wait until all users sockets are closed
 	for(i=0;i<MAX_USER;i++){
 		if(user[i].login){
 			while(1){
@@ -183,16 +182,16 @@ int main(){
 				if(chkerr < 0){
 					myerror("close_read_error");
 				}else if(chkerr == 0){
-					//chkerrの値が0ならばソケットがcloseされている
+					//If the chkerr value is 0, the socket is closed
 					break;
 				}
 			}
 		}
 	}
 
-	printf("サーバーを終了します\n");
+	printf("Terminate the server\n");
 
-	//ソケットを終了する
+	//Terminate the server
 	chkerr = close(sockfd);
 	if(chkerr < 0) myerror("close_sockfd");
 }
