@@ -8,6 +8,7 @@ Typing "SERVER_END" prompts all clients to close their sockets, confirms that al
 */
 
 #include<stdio.h>
+#include<unistd.h>
 #include<arpa/inet.h>
 #include<sys/types.h>
 #include<sys/socket.h>
