@@ -7,6 +7,7 @@ If a message is received, it will be printed to standard output.
 If you want to log out, send "LOGOUT" to the server, the socket will be closed after processing on the server side and the program will exit.
 */
 #include<stdio.h>
+#include<unistd.h>
 #include<arpa/inet.h>
 #include<sys/types.h>
 #include<sys/socket.h>
