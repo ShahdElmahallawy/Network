@@ -17,14 +17,109 @@ Typing "SERVER_END" prompts all clients to close their sockets, confirms that al
 #include<poll.h>
 
 #define MAX_USER 10 		//Set the maximum number of connected users
-
+#define MAX_ROOM 10 //Set the Maximum number of rooms
+#define MAX_ROOM_USER 5 //Set the maximum number of users per room
+#define BUFFER_SIZE 128
+/*
 //Structure with user information
 struct user{
 	char name[128];		//user name
 	int login;			//1 for login status, 0 for logout status
 	struct pollfd new_sockfd[1];	//Read socket for viewing with poll()
 };
+*/
+//Updated struct
+struct user{
+    char name[128]; //user name
+    int login; //1 for login status, 0 for logout status
+    int room; //room number
+    int socket;
+    struct pollfd new_sockfd[1]; //Read socket for viewing with poll()
+};
+struct user user[MAX_USER]; //Array that manages clients
 
+//Structure with room information
+struct room {
+    int num_users; //number of users
+    struct user users[MAX_USER];
+    int user_list[MAX_ROOM_USER]; //list of users in the room
+    char name[128];
+};
+struct room room[MAX_ROOM]; //Array that manages rooms
+void *chat_thread(void *arg) {
+    struct user *u = (struct user *)arg;
+    char buff[128];
+    int chkerr, i;
+
+    while (1) {
+        // Receive a message from the client
+        chkerr = read(u->new_sockfd[0].fd, buff, 128);
+        if (chkerr == 0) {
+            // If the client has disconnected, log out and notify other clients
+            printf("%s has logged out.\n", u->name);
+            u->login = 0;
+            for (i = 0; i < MAX_USER; i++) {
+                if (user[i].login && i != u - user) {
+                    sprintf(buff, "%s has logged out.\n", u->name);
+                    write(user[i].new_sockfd[0].fd, buff, strlen(buff));
+                }
+            }
+            break;
+        } else if (chkerr < 0) {
+            myerror("read_error");
+        }
+
+        // Send the message to all clients
+        for (i = 0; i < MAX_USER; i++) {
+            if (user[i].login && i != u - user) {
+                write(user[i].new_sockfd[0].fd, buff, strlen(buff));
+            }
+        }
+    }
+
+    // Close the socket
+    close(u->new_sockfd[0].fd);
+}
+
+void create_room()
+{
+    char room_name[128];
+    int i, j;
+
+    printf("Enter room name: ");
+    fgets(room_name, sizeof(room_name), stdin);
+    strtok(room_name, "\n");
+
+    // Find an available room slot
+    for(i = 0; i < MAX_ROOM; i++) {
+        if(room[i].num_users == 0) {
+            break;
+        }
+    }
+
+    if(i == MAX_ROOM) {
+        printf("Failed to create room. Maximum number of rooms reached.\n");
+        return;
+    }
+
+    // Initialize the room
+    room[i].num_users = 0;
+    strcpy(room[i].name, room_name);
+
+    printf("Room '%s' created.\n", room_name);
+}
+int num_rooms =0;
+void process_command(char* command,char* room_name)
+{
+	if (strcmp(command, "CREATE") == 0)
+	 {
+            printf("Creating room '%s'\n", room_name);
+            // Add room to list of rooms
+            strcpy(room[num_rooms].name, room_name);
+            room[num_rooms].num_users = 0;
+            num_rooms++;
+        }
+}
 
 /**
 *Function to forcibly terminate when an error occurs
@@ -43,6 +138,7 @@ int main(){
 	int sockfd;			//communication socket
 	struct user user[MAX_USER];		//Array that manages clients
 	char buff[128], new_buff[128];	//Data for sending and receiving
+	char command[BUFFER_SIZE], room_name[BUFFER_SIZE];
 	struct pollfd fds[2];			//Read socket for viewing with poll()
 	struct sockaddr_in serv_addr;	//server data
 	int chkerr, i, j, k, nuser = 0;	//chkerr:A variable that holds the return value of the system call
@@ -143,7 +239,17 @@ int main(){
 
 					chkerr = sprintf(new_buff, "<-%s logeged out ＊Number of remaining connections:%d\n", user[j].name, MAX_USER-nuser);
 					if(chkerr < 0) myerror("sprintf_error");
-				}else{	//If any other comment is put
+				}
+				else if (strcmp(command, "CREATE") == 0)
+	 			{
+				    printf("Creating room '%s'\n", room_name);
+				    // Add room to list of rooms
+				    strcpy(room[num_rooms].name, room_name);
+				    room[num_rooms].num_users = 0;
+				    num_rooms++;
+        			}
+
+				else{	//If any other comment is put
 					chkerr = sprintf(new_buff, "%s: %s\n", user[j].name, buff);
 					if(chkerr < 0) myerror("sprintf_error");
 				}
