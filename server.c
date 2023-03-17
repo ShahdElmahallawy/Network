@@ -20,15 +20,8 @@ Typing "SERVER_END" prompts all clients to close their sockets, confirms that al
 #define MAX_ROOM 10 //Set the Maximum number of rooms
 #define MAX_ROOM_USER 5 //Set the maximum number of users per room
 #define BUFFER_SIZE 128
-/*
-//Structure with user information
-struct user{
-	char name[128];		//user name
-	int login;			//1 for login status, 0 for logout status
-	struct pollfd new_sockfd[1];	//Read socket for viewing with poll()
-};
-*/
-//Updated struct
+#define MAX_BUF_SIZE 128
+
 struct user{
     char name[128]; //user name
     int login; //1 for login status, 0 for logout status
@@ -46,6 +39,8 @@ struct room {
     char name[128];
 };
 struct room room[MAX_ROOM]; //Array that manages rooms
+
+/*
 void *chat_thread(void *arg) {
     struct user *u = (struct user *)arg;
     char buff[128];
@@ -80,46 +75,103 @@ void *chat_thread(void *arg) {
     // Close the socket
     close(u->new_sockfd[0].fd);
 }
+*/
 
-void create_room()
+int num_rooms =0; //global variable to keep track of number of rooms created 
+
+void create_room(char* room_name) //function to create a room chat
 {
-    char room_name[128];
+    printf("Creating room '%s'\n", room_name);
+    strcpy(room[num_rooms].name, room_name);
+    room[num_rooms].num_users = 0;
+    num_rooms++;
+}
+void list_rooms(int newsockfd, char buffer[MAX_BUF_SIZE]) //function to list all created rooms
+{
+    printf("Listing rooms\n");
+    for (int i = 0; i < num_rooms; i++) {
+        sprintf(buffer, "%s\n", room[i].name);
+        write(newsockfd, buffer, strlen(buffer));
+    }
+}
+void join_room(char* room_name, int newsockfd, char buffer[MAX_BUF_SIZE]) //fucntion to allow client join a specific room
+{
     int i, j;
-
-    printf("Enter room name: ");
-    fgets(room_name, sizeof(room_name), stdin);
-    strtok(room_name, "\n");
-
-    // Find an available room slot
-    for(i = 0; i < MAX_ROOM; i++) {
-        if(room[i].num_users == 0) {
+    for (i = 0; i < num_rooms; i++) {
+        if (strcmp(room[i].name, room_name) == 0) {
+            printf("found room");
+            // Add client to room
+            room[i].users[room[i].num_users].socket = newsockfd;
+            strcpy(room[i].users[room[i].num_users].name, room_name);
+            room[i].num_users++;
+            // Send confirmation message to client
+            sprintf(buffer, "You have joined room '%s'\n", room_name);
+            write(newsockfd, buffer, strlen(buffer));
+            // Broadcast message to other clients in the room
+            sprintf(buffer, "Client '%s' has joined the room\n", room_name);
+            for (j = 0; j < room[i].num_users; j++)
+             {
+                if (room[i].users[j].socket != newsockfd) {
+                    write(room[i].users[j].socket, buffer, strlen(buffer));
+                }
+            }
             break;
         }
     }
-
-    if(i == MAX_ROOM) {
-        printf("Failed to create room. Maximum number of rooms reached.\n");
-        return;
+    if (i == num_rooms) {
+        // Room not found
+        sprintf(buffer, "Room '%s' not found\n", room_name);
+        write(newsockfd, buffer, strlen(buffer));
     }
-
-    // Initialize the room
-    room[i].num_users = 0;
-    strcpy(room[i].name, room_name);
-
-    printf("Room '%s' created.\n", room_name);
 }
-int num_rooms =0;
-void process_command(char* command,char* room_name)
+
+void leave_room(int newsockfd, char buffer[MAX_BUF_SIZE]) //Function that allow client to leave a specific room
 {
-	if (strcmp(command, "CREATE") == 0)
-	 {
-            printf("Creating room '%s'\n", room_name);
-            // Add room to list of rooms
-            strcpy(room[num_rooms].name, room_name);
-            room[num_rooms].num_users = 0;
-            num_rooms++;
+    int i, j, k;
+    for (i = 0; i < num_rooms; i++) {
+        for (j = 0; j < room[i].num_users; j++) {
+            if (room[i].users[j].socket == newsockfd) {
+                // Send confirmation message to client
+                sprintf(buffer, "You have left room '%s'\n", room[i].name);
+                write(newsockfd, buffer, strlen(buffer));
+                // Remove client from room
+                room[i].num_users--;
+                for (k = j; k < room[i].num_users; k++) {
+                    room[i].users[k] = room[i].users[k+1];
+                }
+                // Broadcast message to other clients in the room
+                sprintf(buffer, "Client '%s' has left the room\n", room[i].name);
+                for (k = 0; k < room[i].num_users; k++) {
+                    write(room[i].users[k].socket, buffer, strlen(buffer));
+                }
+                break;
+            }
         }
+    }
 }
+void process_command(char* command, char* room_name, int newsockfd, char buffer[MAX_BUF_SIZE] ) //This function takes the command if the cleint entered any of the reserved words and call the responsible function 
+{   
+    if (strcmp(command, "CREATE") == 0)
+     {
+        create_room(room_name);
+        sprintf(buffer, "Room '%s' created\n", room_name);
+        write(newsockfd, buffer, strlen(buffer));
+    } else if (strcmp(command, "LIST") == 0) 
+    {
+        list_rooms(newsockfd, buffer);
+    } else if (strcmp(command, "JOIN") == 0)
+     {
+        join_room(room_name, newsockfd, buffer);
+    } 
+    else if (strcmp(command, "LEAVE") == 0) {
+        leave_room(newsockfd, buffer);
+    } 
+    else {
+        sprintf(buffer, "Invalid command '%s'\n", command);
+        write(newsockfd, buffer, strlen(buffer));
+    }
+}
+
 
 /**
 *Function to forcibly terminate when an error occurs
