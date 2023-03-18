@@ -189,6 +189,19 @@ void process_command(char* command, char* room_name, int newsockfd, char buffer[
     }
 }
 
+int compare(char *buff, char *word){
+        int counter =0;
+        for(int i = 0; i< strlen(word); ++i)
+        {
+                if (strcmp(buff[i], word[i]))
+                        ++counter;
+        }
+  
+  
+        if(counter == strlen(word))
+                return 0;
+        else return 1;
+}
 
 /**
 *Function to forcibly terminate when an error occurs
@@ -312,7 +325,7 @@ int main(){
 				    room_name[0] = '\0';
 				}
 				
-				if(strcmp(buff, "LOGOUT") == 0){	//If "LOGOUT" is entered
+				if(compare(buff, "LOGOUT") == 0){	//If "LOGOUT" is entered
 					chkerr = write(user[j].new_sockfd[0].fd, buff, 128);	//Send "LOGOUT" to the client to close the socket
 					if(chkerr < 0) myerror("write_error");
 
@@ -322,11 +335,11 @@ int main(){
 					chkerr = sprintf(new_buff, "<-%s logeged out ＊Number of remaining connections:%d\n", user[j].name, MAX_USER-nuser);
 					if(chkerr < 0) myerror("sprintf_error");
 				}
-				else if(strcmp(buff, "CREATE") == 0)
+				else if(compare(buff, "CREATE") == 0)
 				{
 					create_room(room_name);
 				}
-				else if(strcmp(buff, "JOIN") == 0) //buff, user[j].new_sockfd[0].fd, room_name
+				else if(compare(buff, "JOIN") == 0) //buff, user[j].new_sockfd[0].fd, room_name
 				{
 			 	    int i, j;
 				    for (i = 0; i < num_rooms; i++) {
@@ -356,7 +369,7 @@ int main(){
 					write(user[j].new_sockfd[0].fd, buff, strlen(buff));
 				    }
 				}
-				else if(strcmp(command, "LIST") == 0)
+				else if(compare(command, "LIST") == 0)
 				{
 				         printf("Listing rooms\n");
             				// List all rooms
