@@ -76,9 +76,7 @@ void *chat_thread(void *arg) {
     close(u->new_sockfd[0].fd);
 }
 */
-
-int num_rooms =0; //global variable to keep track of number of rooms created 
-
+/*
 void create_room(char* room_name) //function to create a room chat
 {
     printf("Creating room '%s'\n", room_name);
@@ -86,6 +84,23 @@ void create_room(char* room_name) //function to create a room chat
     room[num_rooms].num_users = 0;
     num_rooms++;
 }
+*/
+int num_rooms =0; //global variable to keep track of number of rooms created 
+char room_name[BUFFER_SIZE] = "room";
+void create_room()
+{
+	// convert integer to string
+    	char room_str[100];
+    	sprintf(room_str, "%d", num_rooms);
+   	// concatenate the string to the char array
+    	strcat(room_name, room_str);
+    	printf("Creating room '%s'\n", room_name);
+	// Add room to list of rooms
+	strcpy(room[num_rooms].name, room_name);
+	room[num_rooms].num_users = 0;
+	num_rooms++;
+	
+}					  
 void list_rooms(int newsockfd, char buffer[MAX_BUF_SIZE]) //function to list all created rooms
 {
     printf("Listing rooms\n");
@@ -190,7 +205,7 @@ int main(){
 	int sockfd;			//communication socket
 	struct user user[MAX_USER];		//Array that manages clients
 	char buff[128], new_buff[128];	//Data for sending and receiving
-	char command[BUFFER_SIZE], room_name[BUFFER_SIZE];
+	char command[BUFFER_SIZE];
 	struct pollfd fds[2];			//Read socket for viewing with poll()
 	struct sockaddr_in serv_addr;	//server data
 	int chkerr, i, j, k, nuser = 0;	//chkerr:A variable that holds the return value of the system call
@@ -251,6 +266,17 @@ int main(){
 						if(chkerr < 0) myerror("sprintf_error");
 						strcpy(new_buff, buff);
 					}
+					
+							/*
+					//Take command 	
+					//fgets(command, BUFFER_SIZE, stdin); // read user input
+					sscanf(buff,"%s %s", command, room_name);
+					//command[strcspn(command, "\n")] = '\0'; // remove newline character
+					process_command(command, room_name, sockfd, buff); // process user command
+					// start chatting with user or do other things based on their command
+					printf("Took Command \n");
+					*/
+					
 					for(i=0;i<MAX_USER;i++){	//Send to all users
 						if(user[i].login){
 							chkerr = write(user[i].new_sockfd[0].fd, new_buff, 128);
@@ -292,15 +318,10 @@ int main(){
 					chkerr = sprintf(new_buff, "<-%s logeged out ＊Number of remaining connections:%d\n", user[j].name, MAX_USER-nuser);
 					if(chkerr < 0) myerror("sprintf_error");
 				}
-				else if (strcmp(command, "CREATE") == 0)
-	 			{
-				    printf("Creating room '%s'\n", room_name);
-				    // Add room to list of rooms
-				    strcpy(room[num_rooms].name, room_name);
-				    room[num_rooms].num_users = 0;
-				    num_rooms++;
-        			}
-
+				else if(strcmp(buff, "CREATE") == 0)
+				{
+					create_room();
+				}
 				else{	//If any other comment is put
 					chkerr = sprintf(new_buff, "%s: %s\n", user[j].name, buff);
 					if(chkerr < 0) myerror("sprintf_error");
