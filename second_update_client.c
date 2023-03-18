@@ -26,6 +26,20 @@ void myerror(char *message){
 	exit(1);
 }
 
+int compare(char *buff, char *word){
+        int counter =0;
+        for(int i = 0; i< strlen(word); ++i)
+        {
+                if (strcmp(buff[i], word[i]))
+                        ++counter;
+        }
+  
+  
+        if(counter == strlen(word))
+                return 0;
+        else return 1;
+}
+
 
 int main(){
 	int sockfd;				//communication socket
@@ -68,7 +82,7 @@ int main(){
 		poll(fds, 2, 0);	//Monitor sockfd and stdin
 
 		if(fds[1].revents == POLLIN){	//Enter if there is input from the keyboard
-			scanf("%s", buff);
+			fgets(buff, 128, stdin);
 			chkerr = write(fds[0].fd, buff, 128);	//Send data
 			if(chkerr < 0) myerror("write_string_error");
 		}
@@ -84,11 +98,11 @@ int main(){
 				break;
 			}
 
-			if(strcmp(buff, "LOGOUT") == 0){
+			if(compare(buff, "LOGOUT") == 0){
 				//Terminate the program if logout processing is performed
 				printf("logout\n");
 				break;
-			}else if(strcmp(buff, "SERVER_END") == 0){
+			}else if(compare(buff, "SERVER_END") == 0){
 				//"SERVER_END" is signals the end of the server, so exit the program
 				printf("server terminated\n");
 				break;
